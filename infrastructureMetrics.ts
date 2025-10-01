@@ -39,13 +39,7 @@ const getInfraEntityTypes = async (throttle, startTime): Promise<InfraEntity[]> 
     });
 
     try {
-        // const headers = new Headers();
-        // headers.append('Content-Type', 'application/json');
-        // headers.append('authorization', 'apiToken ' + apiToken);
 
-
-        console.log("entity-types");
-        // console.log(JSON.stringify(body));
         const response = await throttle(() => {
             const body = {
                 "tagFilterExpression": {
@@ -72,8 +66,6 @@ const getInfraEntityTypes = async (throttle, startTime): Promise<InfraEntity[]> 
             throw new Error('error getting entity types');
         };
         const data = await response.json();
-        //const data = await response.text();
-        //console.log(data);
         return createEntities(data?.plugins);
     } catch (err) {
         console.log("getInfraEntityTypes error");
@@ -92,7 +84,6 @@ const getInfraEntityTypeMetrics = async (throttle, startTime, entityType) => {
         'authorization': `apiToken ${apiToken}`
     });
 
-    // console.log(`get metrics for ${entityType}`);
     try {
 
         const response = await throttle(() => {
@@ -109,8 +100,6 @@ const getInfraEntityTypeMetrics = async (throttle, startTime, entityType) => {
                 "query": "",
                 "type": entityType
             };
-            // console.log("metrics");
-            // console.log(JSON.stringify(body));
 
             return fetch(baseDomain + '/api/infrastructure-monitoring/analyze/metrics', {
                 method: 'POST',
@@ -126,8 +115,6 @@ const getInfraEntityTypeMetrics = async (throttle, startTime, entityType) => {
             throw new Error('error getting entity metrics');
         };
         const data = await response.json();
-        //const data = await response.text();
-        //console.log(data);
         return data?.metrics;
     } catch (err) {
         console.log("InfraGetMetrics error");
@@ -141,7 +128,6 @@ const getMetrics = async (throttle: any, startTime: any, entity: InfraEntity) =>
     const metrics = await getInfraEntityTypeMetrics(throttle, startTime, entity.name);
     if (metrics && metrics.length > 0) {
         metrics.forEach(m => {
-            // console.log(`pushing metric ${m.id}`);
             entity.metrics.push({
                 id: m.id,
                 infraTagCategory: m.infraTagCategory,
@@ -166,7 +152,6 @@ const buildMetricsBody = (metricsBlock: Metric[]) => {
     const metricsBody = new Array();
     // Max number of variables that can be passed into API is 10
     metricsBlock.forEach((metric, index) => {
-        // console.log(`index: ${index}`);
         metricsBody.push(
             {
                 "metric": metric.id,
@@ -226,8 +211,6 @@ const getInfraEntitysAndMetrics = async (throttle, startTime, entityType, metric
             throw new Error('error getting entitys and metrics', { "cause": response.status });
         };
         const data = await response.json();
-        //console.log("hosts metric items "); 
-        // console.log(data?.items);
         return data?.items;
     } catch (err) {
         console.log("getInfraEntitysAndMetrics error");
@@ -242,7 +225,6 @@ const getInfraEntitysAndMetrics = async (throttle, startTime, entityType, metric
 
 const OTELexportEntityMetric = (metricsBlock: Metric[], entityWithMetricValues) => {
     entityWithMetricValues.forEach(item => {
-        // console.log(JSON.stringify(metricsBlock));
         if (!_.isEmpty(item.metrics)) {
             const metricKey = Object.keys(item.metrics)[0];
             const metricTime = item.metrics[metricKey][0][0];
@@ -250,8 +232,6 @@ const OTELexportEntityMetric = (metricsBlock: Metric[], entityWithMetricValues) 
             const metric: Metric = metricsBlock.find(m => {
                 return metricKey.startsWith(m.id);
             });
-            // console.log("found metric");
-            // console.log(metric);
             entityWithMetricValues = {
                 "plugin": item.plugin,
                 "entity": item.label,
@@ -277,25 +257,11 @@ const OTELexportEntityMetric = (metricsBlock: Metric[], entityWithMetricValues) 
 //https://instana.github.io/openapi/#operation/getEntities
 const getAllInfraEntitiesAndMetrics = async (throttle, startTime, entityTypes: InfraEntity[]) => {
     entityTypes.forEach(async entity => {
-        console.log(`Retriving Entity ${entity.name}  metric count ${entity.metrics.length}`);
         // API limits query to 10 metrics at a time
         for (let i = 0; i < entity.metrics?.length; i += 10) {
             const metricsBlock = entity.metrics.slice(i, i + 10);
-            // if (entityType === "host") console.log(`Entity ${entityType} Length ${entityTypeMetrics?.length} Metrics Length ${metricsBody.length} StartIndex ${i}`);
-            // console.log(metricsBody);
             const entitiesAndMetricsItems = await getInfraEntitysAndMetrics(throttle, startTime, entity.name, metricsBlock);
-            // if (entityType === "host") console.log("metric items count " + metrics?.length);
-            // if (entityType === "host") console.log(metrics);
             OTELexportEntityMetric(metricsBlock, entitiesAndMetricsItems);
-            // if (metrics && metrics.length > 0) {
-            //     // console.log(`metric count ${metrics.length}`);
-            //     metrics.forEach(metric => {
-            //         metricDataForType.push(metric);
-            //     });
-            // }
-
-            // ***** TEST with just a few metrics ****
-            return;
         }
 
     });
@@ -303,13 +269,8 @@ const getAllInfraEntitiesAndMetrics = async (throttle, startTime, entityTypes: I
 
 
 export async function exportInfrastructureMetrics(throttle, startTime) {
-    console.log("get infra metrics");
     const entityTypes: Array<InfraEntity> = await getInfraEntityTypes(throttle, startTime);
-    // console.log("before metrics");
-    // console.log(entityTypes);
     await getInfraEntityMetricTypes(throttle, startTime, entityTypes);
-    console.log("after Metrics")
-    console.log(JSON.stringify(entityTypes[0]));
     await getAllInfraEntitiesAndMetrics(throttle, startTime, entityTypes);
     return;
 }

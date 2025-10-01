@@ -21,8 +21,6 @@ class UniqueTraceArray extends Array {
   constructor(array) {
     super();
     array.forEach(a => {
-      // console.log("trace");
-      // console.log(a);
       if (!this.find(v => v.trace.id === a.trace.id)) this.push(a);
     });
   }
@@ -84,8 +82,6 @@ const getTraceBlock = async (throttle, startTime, ingestionTime, offset) => {
       throw new Error('error getting traces');
     };
     const data = await response.json();
-    //const data = await response.text();
-    //console.log(data);
     return data;
   } catch (err) {
     console.log("getTraceBlock error");
@@ -102,20 +98,13 @@ const getTraces = async (throttle, startTime) => {
     let block = null;
     do {
       block = await getTraceBlock(throttle, startTime, ingestionTime, offset);
-      // console.log(`block canloadmore ${block.canLoadMore}`);
-      // console.log(`block totalHits ${block.totalHits}`);
-      // console.log(`block items ${block.items.length}`);
-      // console.log(block.items[block.items.length-1]);
       if (block.items.length > 0) {
         traces = traces.concat(block.items);
         ingestionTime = block.items[block.items.length - 1].cursor.ingestionTime;
         offset = block.items[block.items.length - 1].cursor.offset;
         startOffset = block.items[0].cursor.offset;
-        // console.log(`block startoffset ${startOffset}`);
-        // console.log(`block endoffset ${offset}`);
       };
     } while (block.canLoadMore);
-    // console.log(`Total traces ${traces.length}`);
     return traces;
   } catch (err) {
     console.log("getTraces error");
@@ -136,7 +125,6 @@ async function getTraceSpans(throttle, traceId: string) {
 
   try {
     const response = await throttle(() => {
-      // console.log(body);
       return fetch(`${baseDomain}/api/application-monitoring/v2/analyze/traces/${traceId}`, {
         method: 'GET',
         headers: headers
@@ -149,9 +137,6 @@ async function getTraceSpans(throttle, traceId: string) {
       throw new Error('error getting trace spans');
     };
     const data = await response.json();
-    //const data = await response.text();
-    // console.log("got spans");
-    // console.log(data);
     return data.items;
   } catch (err) {
     console.log("getTraceSpans error");
@@ -161,7 +146,6 @@ async function getTraceSpans(throttle, traceId: string) {
 }
 
 function exportSpan(traceId: string, instanaSpan: Array<any>) {
-  // console.log(instanaSpan);
   const span = tracer.startSpan(instanaSpan.name,
     {
       attributes: {
@@ -182,10 +166,7 @@ function exportSpan(traceId: string, instanaSpan: Array<any>) {
 }
 
 async function exportSpans(throttle, traces: Array<any>) {
-  // console.log(`exporting spans for total traces ${traces.length}`);
   traces.forEach(async traceItem => {
-    // console.log("get spans for trace");
-    // console.log(traceItem.trace);
     const spans = await getTraceSpans(throttle, traceItem.trace.id);
     spans.forEach(span => {
       exportSpan(traceItem.trace.id, span);
@@ -197,7 +178,5 @@ async function exportSpans(throttle, traces: Array<any>) {
 export async function exportTraces(throttle, startTime) {
   let traces = await getTraces(throttle, startTime);
   let uniqueTraces = new UniqueTraceArray(traces);
-  console.log(`Unique Trace count ${uniqueTraces.length}`);
   await exportSpans(throttle, uniqueTraces);
-  console.log("done");
 }
