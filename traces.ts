@@ -1,0 +1,203 @@
+// import type { SpanContext } from '@opentelemetry/api';
+import { Context, ContextManager, Span } from '@opentelemetry/api';
+import opentelemetry from '@opentelemetry/api';
+//...
+import { TraceState } from '@opentelemetry/api';
+
+// get sdk tracer
+import { startNodeSDK } from './instrumentation';
+startNodeSDK();
+import { trace, context, SpanContext, TraceFlags } from '@opentelemetry/api';
+const tracer = trace.getTracer("Instana OTEL SDK Tracer");
+// ***
+
+// my tracer
+// import { getTracer } from './instrumentation';
+// const tracer = getTracer("Instana OTEL Tracer");
+// ***
+
+
+class UniqueTraceArray extends Array {
+  constructor(array) {
+    super();
+    array.forEach(a => {
+      // console.log("trace");
+      // console.log(a);
+      if (!this.find(v => v.trace.id === a.trace.id)) this.push(a);
+    });
+  }
+}
+
+
+const getTraceBlock = async (throttle, startTime, ingestionTime, offset) => {
+  const baseDomain = process.env.BASE_DOMAIN;
+  const apiToken = process.env.API_TOKEN;
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    'authorization': `apiToken ${apiToken}`
+  });
+
+  try {
+    const response = await throttle(() => {
+      const body = {
+        "includeInternal": false,
+        "includeSynthetic": false,
+        "tagFilterExpression": {
+          "type": "EXPRESSION",
+          "logicalOperator": "AND",
+          "elements": [
+            {
+              "type": "TAG_FILTER",
+              "name": "application.name",
+              "operator": "EQUALS",
+              "entity": "DESTINATION",
+              "value": "All Services"
+            }
+          ]
+        },
+        "order": {
+          "by": "traceLabel",
+          "direction": "DESC"
+        }
+      }
+      if (ingestionTime) {
+        body.pagination = {
+          "ingestionTime": ingestionTime,
+          "offset": offset
+        };
+      } else {
+        body.timeFrame = {
+          "windowSize": startTime
+        };
+      }
+
+      return fetch(`${baseDomain}/api/application-monitoring/analyze/traces`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(body)
+      });
+    });
+    if (!response.ok) {
+      console.log('Got error');
+      console.log(response.status);
+      console.log(response.err);
+      throw new Error('error getting traces');
+    };
+    const data = await response.json();
+    //const data = await response.text();
+    //console.log(data);
+    return data;
+  } catch (err) {
+    console.log("getTraceBlock error");
+    console.log(err);
+  }
+};
+
+
+const getTraces = async (throttle, startTime) => {
+  let ingestionTime = null;
+  let offset = null;
+  let traces = new Array();
+  try {
+    let block = null;
+    do {
+      block = await getTraceBlock(throttle, startTime, ingestionTime, offset);
+      // console.log(`block canloadmore ${block.canLoadMore}`);
+      // console.log(`block totalHits ${block.totalHits}`);
+      // console.log(`block items ${block.items.length}`);
+      // console.log(block.items[block.items.length-1]);
+      if (block.items.length > 0) {
+        traces = traces.concat(block.items);
+        ingestionTime = block.items[block.items.length - 1].cursor.ingestionTime;
+        offset = block.items[block.items.length - 1].cursor.offset;
+        startOffset = block.items[0].cursor.offset;
+        // console.log(`block startoffset ${startOffset}`);
+        // console.log(`block endoffset ${offset}`);
+      };
+    } while (block.canLoadMore);
+    // console.log(`Total traces ${traces.length}`);
+    return traces;
+  } catch (err) {
+    console.log("getTraces error");
+    console.log(err);
+  }
+
+};
+
+
+async function getTraceSpans(throttle, traceId: string) {
+  // GET /api/application-monitoring/v2/analyze/traces/f8b3cea2a1f1a515
+  const baseDomain = process.env.BASE_DOMAIN;
+  const apiToken = process.env.API_TOKEN;
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    'authorization': `apiToken ${apiToken}`
+  });
+
+  try {
+    const response = await throttle(() => {
+      // console.log(body);
+      return fetch(`${baseDomain}/api/application-monitoring/v2/analyze/traces/${traceId}`, {
+        method: 'GET',
+        headers: headers
+      });
+    });
+    if (!response.ok) {
+      console.log('Got error');
+      console.log(response.status);
+      console.log(response.err);
+      throw new Error('error getting trace spans');
+    };
+    const data = await response.json();
+    //const data = await response.text();
+    // console.log("got spans");
+    // console.log(data);
+    return data.items;
+  } catch (err) {
+    console.log("getTraceSpans error");
+    console.log(err);
+  }
+
+}
+
+function exportSpan(traceId: string, instanaSpan: Array<any>) {
+  // console.log(instanaSpan);
+  const span = tracer.startSpan(instanaSpan.name,
+    {
+      attributes: {
+        'instana.traceId': traceId,
+        'instana.spanId': instanaSpan.id,
+        'instana.timestamp': instanaSpan.timestamp,
+        'instana.parentSpanId': instanaSpan.parentId,
+        'instana.foreignParentId': instanaSpan.foreignParentId,
+        'instana.duration': instanaSpan.duration,
+        'instana.minSelfTime': instanaSpan.minSelfTime,
+        'instana.networkTime': instanaSpan.networkTime,
+        'instana.callCount': instanaSpan.callCount,
+        'instana.errorCount': instanaSpan.errorCount
+      }
+    }
+  );
+  span.end();
+}
+
+async function exportSpans(throttle, traces: Array<any>) {
+  // console.log(`exporting spans for total traces ${traces.length}`);
+  traces.forEach(async traceItem => {
+    // console.log("get spans for trace");
+    // console.log(traceItem.trace);
+    const spans = await getTraceSpans(throttle, traceItem.trace.id);
+    spans.forEach(span => {
+      exportSpan(traceItem.trace.id, span);
+    });
+  });
+}
+
+
+export async function exportTraces(throttle, startTime) {
+  let traces = await getTraces(throttle, startTime);
+  let uniqueTraces = new UniqueTraceArray(traces);
+  console.log(`Unique Trace count ${uniqueTraces.length}`);
+  await exportSpans(throttle, uniqueTraces);
+  console.log("done");
+}
