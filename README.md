@@ -9,7 +9,7 @@ This is a Node.js application that uses the [Instana REST API's](https://www.ibm
 1. `BASE_DOMAIN` - Your Instana Base Domain name.
 2. `API_TOKEN` - Your Instana API Token.
 
-See the [.env.example](./env.example) file
+See the [.env.example](.env.example) file
 
 ## Node
 This is a Node.js application using TypeScript. 
@@ -19,7 +19,7 @@ This is a Node.js application using TypeScript.
 # Running the application
 
 ## Start the server
-The application exposes REST APIs used to retrieve the OpenTelemetry signles from Instana.  Execute the command `npx tsx app.ts` to execute the program
+The application exposes REST APIs used to retrieve the OpenTelemetry signles from Instana.  Run the command `npx tsx app.ts` to start the server.
 
 ## Pull the signels
 The application exposes two endpoints to retrive the signels.
