@@ -1,8 +1,10 @@
 import _ from 'lodash';
 
-// my meter
-import { getMeter } from './instrumentation';
-const meter = getMeter("Instana OTEL Extractor");
+import { metrics } from '@opentelemetry/api';
+
+// meter not set on Global scope yet. 
+// const meter = metrics.getMeter("Instana OTEL Extractor");
+let meter = null;
 
 type Metric = {
     id: string,
@@ -140,7 +142,7 @@ const getMetrics = async (throttle: any, startTime: any, entity: InfraEntity) =>
     };
 };
 
-// Get the Metrics available for Entities (plugins)
+// Get the Metrics Types available for Entities (plugins)
 const getInfraEntityMetricTypes = async (throttle, startTime, entityTypes: InfraEntity[]) => {
     await Promise.all(entityTypes.map(async entity => {
         await getMetrics(throttle, startTime, entity);
@@ -269,6 +271,7 @@ const getAllInfraEntitiesAndMetrics = async (throttle, startTime, entityTypes: I
 
 
 export async function exportInfrastructureMetrics(throttle, startTime) {
+    meter = metrics.getMeter("Instana OTEL Extractor");
     const entityTypes: Array<InfraEntity> = await getInfraEntityTypes(throttle, startTime);
     await getInfraEntityMetricTypes(throttle, startTime, entityTypes);
     await getAllInfraEntitiesAndMetrics(throttle, startTime, entityTypes);

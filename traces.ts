@@ -1,20 +1,6 @@
-// import type { SpanContext } from '@opentelemetry/api';
-import { Context, ContextManager, Span } from '@opentelemetry/api';
-import opentelemetry from '@opentelemetry/api';
-//...
-import { TraceState } from '@opentelemetry/api';
 
-// get sdk tracer
-import { startNodeSDK } from './instrumentation';
-startNodeSDK();
-import { trace, context, SpanContext, TraceFlags } from '@opentelemetry/api';
+import { trace } from '@opentelemetry/api';
 const tracer = trace.getTracer("Instana OTEL SDK Tracer");
-// ***
-
-// my tracer
-// import { getTracer } from './instrumentation';
-// const tracer = getTracer("Instana OTEL Tracer");
-// ***
 
 
 class UniqueTraceArray extends Array {
@@ -89,7 +75,9 @@ const getTraceBlock = async (throttle, startTime, ingestionTime, offset) => {
   }
 };
 
-
+// Get all Trace IDs
+// https://instana.github.io/openapi/#operation/getTraces
+// Traces are returned in blocks
 const getTraces = async (throttle, startTime) => {
   let ingestionTime = null;
   let offset = null;
@@ -113,9 +101,9 @@ const getTraces = async (throttle, startTime) => {
 
 };
 
-
+// Get the trace details (spans) for a trace id
+// https://instana.github.io/openapi/#operation/getTraceDownload
 async function getTraceSpans(throttle, traceId: string) {
-  // GET /api/application-monitoring/v2/analyze/traces/f8b3cea2a1f1a515
   const baseDomain = process.env.BASE_DOMAIN;
   const apiToken = process.env.API_TOKEN;
   const headers = new Headers({

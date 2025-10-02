@@ -3,15 +3,14 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import express, { type Express } from 'express';
-// import { getTracer } from './instrumentation';
-//startNodeSDK();
-// import { trace } from '@opentelemetry/api';
-// const tracer = getTracer('Instana OTEL App');
 
+import {startNodeSDK} from './instrumentation';
+startNodeSDK();
 
 import { exportTraces } from './traces';
 import { exportInfrastructureMetrics } from './infrastructureMetrics';
 
+// instana.io REST APIs are rate limited.  
 import { throttledQueue, hours } from 'throttled-queue';
 const throttle = throttledQueue({
   maxPerInterval: 5000,
@@ -59,5 +58,5 @@ app.get('/infrastructure/metrics', async (req, res) => {
 
 
 app.listen(PORT, () => {
-  console.log(`Listening for requests on http://localhost:${PORT}`);
+  console.log(`Listening for requests on http://localhost:${PORT}`); 
 });
